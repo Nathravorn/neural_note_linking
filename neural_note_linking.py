@@ -21,7 +21,7 @@ def get_tokenizer_and_model(model_name):
     
     return tokenizer, model
 
-def get_text_embedding(text, tokenizer, model):
+def get_text_embedding(text, tokenizer, model, aggregation="mean"):
     """Get a lanaguage-model-generated embedding for a bit of text.
     Texts longer than the model's size limit will be separated into several sequences and the
     embedding vectors averaged. Effect uncertain.
@@ -33,10 +33,22 @@ def get_text_embedding(text, tokenizer, model):
         text (str): Text to get embedding for.
         tokenizer (transformers.Tokenizer): Tokenizer returned by get_tokenizer_and_model.
         model (transformers.Model): Model returned by get_tokenizer_and_model.
+        aggregation (str): How to aggregate a sequence's embeddings.
+            If "mean", take the mean of the embeddings of the tokens.
+            If "first", take the embedding of the first token.
+            Default: "mean".
     
     Returns:
         np.array: Embedding vector for the text. Dimension depends on model but is length-independent.
     """
+    # Define aggregation function
+    aggregation_functions = {
+        "mean": lambda x: x.mean(axis=1).squeeze(),
+        "first": lambda x: x[:, 0].squeeze()
+    }
+    assert aggregation in aggregation_functions, f"Unrecognized aggregation type: {aggregation}."
+    aggregation_function = aggregation_functions[aggregation]
+    
     # Convert text to tokens
     tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(text))
     
@@ -67,7 +79,7 @@ def get_text_embedding(text, tokenizer, model):
     ])
     
     length_independent_embeddings = [
-        emb.mean(axis=1).squeeze() # Should be of shape (hidden_size,)
+        aggregation_function(emb) # Should be of shape (hidden_size,)
         for emb in embeddings
     ]
     
@@ -115,7 +127,7 @@ def get_distance_matrix(vectors, metric="cosine", triangular=True, verbose=False
     
     return matrix
 
-def get_text_distances(texts, names=None, tokenizer=None, model=None, metric="cosine", skip_duplicates=True):
+def get_text_distances(texts, names=None, tokenizer=None, model=None, embedding_aggregation="mean", metric="cosine", skip_duplicates=True):
     """Get distances between texts as a pd.Series.
     
     Args:
@@ -126,6 +138,10 @@ def get_text_distances(texts, names=None, tokenizer=None, model=None, metric="co
             Default: None.
         model (transformers.Model): Model returned by get_tokenizer_and_model. If None, will automatically load "xlm-roberta-base".
             Default: None.
+        embedding_aggregation (str): How to aggregate each sequence's embeddings.
+            If "mean", take the mean of the embeddings of the tokens.
+            If "first", take the embedding of the first token.
+            Default: "mean".
         metric (str): Distance metric to use.
             Currently supported: "l2", "cosine". (cosine distance = 1 - cosine similarity, normalized to be between 0 and 1)
             Default: "cosine".
@@ -142,7 +158,7 @@ def get_text_distances(texts, names=None, tokenizer=None, model=None, metric="co
     if names is None:
         names = range(len(texts))
     
-    embeddings = [get_text_embedding(text, tokenizer, model) for text in tqdm(texts)]
+    embeddings = [get_text_embedding(text, tokenizer, model, aggregation=embedding_aggregation) for text in tqdm(texts)]
     
     dist = pd.DataFrame(
         get_distance_matrix(embeddings, metric=metric, triangular=skip_duplicates),
