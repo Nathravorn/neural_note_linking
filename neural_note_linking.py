@@ -3,89 +3,7 @@ import itertools
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import torch
-from transformers import AutoTokenizer, AutoModel, AutoConfig
-
-def get_tokenizer_and_model(model_name):
-    """Get huggingface tokenizer and model for specified model name.
-    
-    Args:
-        model_name (str): Name of the model to import.
-    Returns:
-        transformers Tokenizer object
-        transformers Model object
-    """
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    config = AutoConfig.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name, config=config)
-    
-    return tokenizer, model
-
-def get_text_embedding(text, tokenizer, model, aggregation="mean"):
-    """Get a lanaguage-model-generated embedding for a bit of text.
-    Texts longer than the model's size limit will be separated into several sequences and the
-    embedding vectors averaged. Effect uncertain.
-    
-    Certain models might not work with this function, but all BERT-based models do.
-    The recommended model for multilingual embedding is "xlm-roberta-base".
-    
-    Args:
-        text (str): Text to get embedding for.
-        tokenizer (transformers.Tokenizer): Tokenizer returned by get_tokenizer_and_model.
-        model (transformers.Model): Model returned by get_tokenizer_and_model.
-        aggregation (str): How to aggregate a sequence's embeddings.
-            If "mean", take the mean of the embeddings of the tokens.
-            If "first", take the embedding of the first token.
-            Default: "mean".
-    
-    Returns:
-        np.array: Embedding vector for the text. Dimension depends on model but is length-independent.
-    """
-    # Define aggregation function
-    aggregation_functions = {
-        "mean": lambda x: x.mean(axis=1).squeeze(),
-        "first": lambda x: x[:, 0].squeeze()
-    }
-    assert aggregation in aggregation_functions, f"Unrecognized aggregation type: {aggregation}."
-    aggregation_function = aggregation_functions[aggregation]
-    
-    # Convert text to tokens
-    tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(text))
-    
-    # Run test to determine how many special tokens are added to a sequence
-    test_token = tokens[0]
-    num_special_tokens = len(tokenizer.prepare_for_model([test_token])["input_ids"]) - 1
-    
-    # Separate into sequences in case length is too large
-    sequences = [
-        tokens[i:i+tokenizer.max_len - num_special_tokens]
-        for i in range(0, len(tokens), tokenizer.max_len)
-    ]
-    
-    # Add special tokens to each sequence
-    sequences = [
-        torch.tensor([
-            tokenizer.prepare_for_model(
-                seq
-            )["input_ids"]
-        ])
-        for seq in sequences
-    ]
-    
-    # Compute embeddings (first output of the model = last hidden state, of shape (1, seq_length, hidden_size))
-    embeddings = np.array([
-        model(seq)[0].detach().numpy()
-        for seq in sequences
-    ])
-    
-    length_independent_embeddings = [
-        aggregation_function(emb) # Should be of shape (hidden_size,)
-        for emb in embeddings
-    ]
-    
-    embedding = np.array(length_independent_embeddings).mean(axis=0)
-    
-    return embedding
+from sentence_transformers import SentenceTransformer
 
 def get_distance_matrix(vectors, metric="cosine", triangular=True, verbose=False):
     """Compute the distance between all pairs of vectors in a list and return them as a matrix.
@@ -127,21 +45,15 @@ def get_distance_matrix(vectors, metric="cosine", triangular=True, verbose=False
     
     return matrix
 
-def get_text_distances(texts, names=None, tokenizer=None, model=None, aggregation="mean", metric="cosine", skip_duplicates=True):
+def get_text_distances(texts, names=None, sentence_transformer=None, metric="cosine", skip_duplicates=True):
     """Get distances between texts as a pd.Series.
     
     Args:
         texts (list of strings): Texts to compare.
         names (list of strings): Names of texts. If None, use integers.
             Default: None.
-        tokenizer (transformers.Tokenizer): Tokenizer returned by get_tokenizer_and_model. If None, will automatically load "xlm-roberta-base".
-            Default: None.
-        model (transformers.Model): Model returned by get_tokenizer_and_model. If None, will automatically load "xlm-roberta-base".
-            Default: None.
-        aggregation (str): How to aggregate each sequence's embeddings.
-            If "mean", take the mean of the embeddings of the tokens.
-            If "first", take the embedding of the first token.
-            Default: "mean".
+        sentence_transformer (SentenceTransformer): Transformer for computing sentence embeddings.
+            If None, will automatically load "distiluse-base-multilingual-cased"
         metric (str): Distance metric to use.
             Currently supported: "l2", "cosine". (cosine distance = 1 - cosine similarity, normalized to be between 0 and 1)
             Default: "cosine".
@@ -152,13 +64,13 @@ def get_text_distances(texts, names=None, tokenizer=None, model=None, aggregatio
     Returns:
         pd.Series: Series with MultiIndex representing pairs of texts, and distances as values.
     """
-    if (tokenizer is None) or (model is None):
-        tokenizer, model = get_tokenizer_and_model("xlm-roberta-base")
+    if sentence_transformer is None:
+        sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased")
     
     if names is None:
         names = range(len(texts))
     
-    embeddings = [get_text_embedding(text, tokenizer, model, aggregation=aggregation) for text in tqdm(texts)]
+    embeddings = sentence_transformer.encode(texts)
     
     dist = pd.DataFrame(
         get_distance_matrix(embeddings, metric=metric, triangular=skip_duplicates),
