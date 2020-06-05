@@ -7,10 +7,10 @@ Categorize bits of text by how similar they are using neural language models
 texts = [
     "I am a cow.",
     "My nature is that of a bovine.",
-    "I live on a farm, am an animal, and give milk.",
+    "Je suis un animal qui donne du lait à ses veaux.",
     "Microprocessors are this company's specialty.",
     "Recent advances in quantum computing have been promising.",
-    "Perhaps AI can save computational cost for businesses."
+    "La puissance des ordinateurs double tous les trois ans."
 ]
 
 names = [
@@ -21,28 +21,28 @@ names = [
     "it2",
     "it3"
 ]
-# Since we are going to do several experiments, we pre-load the sentence transformer to save time
-sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased")
 
-dist = get_text_distances(texts, names, sentence_transformer, metric="l2")
+dist = get_text_distances(texts, names)
+print(dist.sort_values())
 ```
 
 ```
-cow1  cow3    0.771564
-      cow2    0.805512
-cow2  cow3    0.932953
-it2   it3     1.169351
-it1   it3     1.257774
-      it2     1.273697
-cow2  it1     1.280729
-cow1  it1     1.290356
-cow3  it1     1.308583
-cow1  it3     1.332934
-      it2     1.342553
-cow2  it3     1.343927
-cow3  it3     1.352675
-cow2  it2     1.389026
-cow3  it2     1.399683
+cow1  cow3    0.170995
+      cow2    0.180422
+cow2  cow3    0.196127
+it2   it3     0.353634
+it1   it3     0.411704
+      it2     0.425816
+cow2  it1     0.437633
+cow3  it1     0.452270
+cow1  it1     0.453539
+cow3  it3     0.472382
+cow2  it3     0.480014
+cow1  it2     0.492905
+      it3     0.494314
+cow3  it2     0.496226
+cow2  it2     0.516734
 ```
 
-The algorithm correctly sorts the texts by similarity, grouping all 3 texts about cows together and all 3 about IT together.
+The algorithm correctly sorts the texts by similarity, grouping all 3 texts about cows together and
+all 3 about IT together; and it does that across 2 different languages!
