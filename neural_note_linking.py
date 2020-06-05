@@ -127,7 +127,7 @@ def get_distance_matrix(vectors, metric="cosine", triangular=True, verbose=False
     
     return matrix
 
-def get_text_distances(texts, names=None, tokenizer=None, model=None, embedding_aggregation="mean", metric="cosine", skip_duplicates=True):
+def get_text_distances(texts, names=None, tokenizer=None, model=None, aggregation="mean", metric="cosine", skip_duplicates=True):
     """Get distances between texts as a pd.Series.
     
     Args:
@@ -138,7 +138,7 @@ def get_text_distances(texts, names=None, tokenizer=None, model=None, embedding_
             Default: None.
         model (transformers.Model): Model returned by get_tokenizer_and_model. If None, will automatically load "xlm-roberta-base".
             Default: None.
-        embedding_aggregation (str): How to aggregate each sequence's embeddings.
+        aggregation (str): How to aggregate each sequence's embeddings.
             If "mean", take the mean of the embeddings of the tokens.
             If "first", take the embedding of the first token.
             Default: "mean".
@@ -158,7 +158,7 @@ def get_text_distances(texts, names=None, tokenizer=None, model=None, embedding_
     if names is None:
         names = range(len(texts))
     
-    embeddings = [get_text_embedding(text, tokenizer, model, aggregation=embedding_aggregation) for text in tqdm(texts)]
+    embeddings = [get_text_embedding(text, tokenizer, model, aggregation=aggregation) for text in tqdm(texts)]
     
     dist = pd.DataFrame(
         get_distance_matrix(embeddings, metric=metric, triangular=skip_duplicates),
