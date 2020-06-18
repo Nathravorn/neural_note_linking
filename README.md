@@ -46,3 +46,13 @@ cow2  it2     0.516734
 
 The algorithm correctly sorts the texts by similarity, grouping all 3 texts about cows together and
 all 3 about IT together; and it does that across 2 different languages!
+
+We can also generate a plot for the notes using the embeddings provided by the transformer.
+
+```python
+embed_and_plot(texts, names, sentence_transformer)
+```
+
+![Notes plot](viz/readme_example.png)
+
+In this space, euclidean distance between the represented texts can be interpreted as semantic distance.
