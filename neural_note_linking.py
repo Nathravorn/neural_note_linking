@@ -5,6 +5,9 @@ import pandas as pd
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 
+from matplotlib import pyplot as plt
+from sklearn.decomposition import PCA
+
 def get_distance_matrix(vectors, metric="cosine", triangular=True, verbose=False):
     """Compute the distance between all pairs of vectors in a list and return them as a matrix.
     Nothing fancy here, so number of operations is quadratic in len(vectors).
@@ -87,3 +90,68 @@ def get_text_distances(texts, names=None, sentence_transformer=None, metric="cos
     
     return dist
     
+def get_small_dimensional_embeddings(texts, sentence_transformer=None, dimension=2):
+    """Embed texts in small dimension using PCA.
+    
+    Args:
+        texts (list of strings): Texts to compare.
+        sentence_transformer (SentenceTransformer): Transformer for computing sentence embeddings.
+            If None, will automatically load "distiluse-base-multilingual-cased"
+            Default: None.
+        dimension (int): How many dimensions to keep.
+            Default: 2.
+    
+    Returns:
+        np.array with shape (n_texts, dimension)
+    """
+    if sentence_transformer is None:
+        sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased")
+    
+    embeddings = sentence_transformer.encode(texts)
+    
+    small_dim_embeddings = PCA(dimension).fit_transform(embeddings)
+    
+    return small_dim_embeddings
+    
+def scatter_with_annotations(coords, annotations):
+    """Create a scatterplot based on some coords and adding text annotations.
+    
+    Args:
+        coords (array-like): Coordinates to scatter and add text to.
+            Each element must be 2-dimensional.
+        annotations (list of strings): Texts to add to the plot.
+            Must be of same length as coords.
+    
+    Returns:
+        plt.Axes: Axes object for the plot.
+    """
+    fig, ax = plt.subplots(figsize=(16, 9))
+    
+    plt.scatter(coords[:, 0], coords[:, 1], alpha=0.4)
+    for name, vect in zip(annotations, coords):
+        plt.annotate(name, vect)
+    
+    return ax
+
+def embed_and_plot(texts, names=None, sentence_transformer=None):
+    """Embed texts in 2 dimensions and plot them using their names.
+    
+    Args:
+        texts (list of strings): Texts to embed.
+        names (list of strings): Names of texts. If None, use integers.
+            Default: None.
+        sentence_transformer (SentenceTransformer): Transformer for computing sentence embeddings.
+            If None, will automatically load "distiluse-base-multilingual-cased"
+    
+    Returns:
+        plt.Axes: Axes object for the plot
+    """
+    if sentence_transformer is None:
+        sentence_transformer = SentenceTransformer("distiluse-base-multilingual-cased")
+    
+    if names is None:
+        names = range(len(texts))
+    
+    embeddings = get_small_dimensional_embeddings(texts, sentence_transformer=sentence_transformer, dimension=2)
+    
+    return scatter_with_annotations(embeddings, names)
